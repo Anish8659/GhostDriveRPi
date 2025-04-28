@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ghost Drive</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpNcYMr1He6zNQYgmnzT8o7ENwEzF74_s"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+    <h1>Ghost Drive</h1>
+</header>
+<main>
+    <div id="map" style="height: 400px; width: 100%;"></div>
+    <div id="info">
+        <p><strong>Speed:</strong> <span id="speed">0</span> km/h</p>
+        <p><strong>Satellites:</strong> <span id="sat">0</span></p>
+        <p id="warning"></p>
+    </div>
+</main>
+<script>
+    let map;
+  
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 51.5074, lng: -0.1278 },
+        zoom: 13,
+      });
+  
+      // Fetch and show cameras
+      fetch('/get_speed_cameras')
+        .then(response => response.json())
+        .then(cameras => {
+          cameras.forEach(cam => {
+            const marker = new google.maps.Marker({
+              position: { lat: cam.lat, lng: cam.lng },
+              map: map,
+              title: `${cam.type} - ${cam.speed_limit} km/h`,
+              icon: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+            });
+  
+            const infowindow = new google.maps.InfoWindow({
+              content: `<strong>Type:</strong> ${cam.type}<br><strong>Speed Limit:</strong> ${cam.speed_limit} km/h`
+            });
+  
+            marker.addListener("click", () => {
+              infowindow.open(map, marker);
+            });
+          });
+        });
+    }
+  </script>
+  
+  <!-- Google Maps API Key -->
+  <script async
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpNcYMr1He6zNQYgmnzT8o7ENwEzF74_s&callback=initMap">
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ghost Drive</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/warning.css">
+
+  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpNcYMr1He6zNQYgmnzT8o7ENwEzF74_s&callback=initMap" async defer></script>
+</head>
+<body>
+  <header>
+    <h1>Ghost Drive</h1>
+  </header>
+
+  <main style="padding: 80px 20px 200px;">
+    <div id="map" style="height: 400px; width: 100%;"></div>
+
+    <h2>Live Dashboard</h2>
+    <p><strong>Speed:</strong> <span id="speed">0</span> mph</p>
+    <p><strong>Satellites:</strong> <span id="sat">0</span></p>
+    <p><strong>Latitude:</strong> <span id="lat">-</span></p>
+    <p><strong>Longitude:</strong> <span id="lng">-</span></p>
+    <p><strong>Nearest Camera:</strong> <span id="nearest_cam">-</span></p>
+    <p><strong>Timestamp:</strong> <span id="timestamp">-</span></p>
+  </main>
+
+  <script>
+    let map, marker;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 51.5074, lng: -0.1278 },
+        zoom: 13,
+      });
+      marker = new google.maps.Marker({ map });
+
+      // Load all speed cameras
+      fetch('/get_speed_cameras')
+        .then(response => response.json())
+        .then(cameras => {
+          cameras.forEach(cam => {
+            new google.maps.Marker({
+              position: { lat: cam.lat, lng: cam.lng },
+              map,
+              icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+            });
+          });
+        });
+    }
+
+    const socket = io({ transports: ['websocket'] });
+
+    socket.on('connect', () => console.log('Socket connected!'));
+
+    socket.on('update_location', data => {
+      console.log('Received GPS data:', data);
+
+      if (data.lat !== undefined && data.lng !== undefined) {
+        marker.setPosition({ lat: data.lat, lng: data.lng });
+        map.setCenter({ lat: data.lat, lng: data.lng });
+      }
+
+      document.getElementById('speed').innerText       = (data.speed      !== undefined) ? data.speed.toFixed(1)       : '-';
+      document.getElementById('sat').innerText         = (data.satellites !== undefined) ? data.satellites              : '-';
+      document.getElementById('lat').innerText         = (data.lat        !== undefined) ? data.lat.toFixed(6)         : '-';
+      document.getElementById('lng').innerText         = (data.lng        !== undefined) ? data.lng.toFixed(6)         : '-';
+      document.getElementById('nearest_cam').innerText = data.nearest_camera
+                                                          ? `${data.nearest_camera.type} (${data.nearest_camera.distance_mi.toFixed(2)} mi)`
+                                                          : '-';
+      document.getElementById('timestamp').innerText   = data.timestamp || '-';
+
+      if (data.nearest_camera) {
+        document.getElementById('nearest_cam').innerText =
+          `${data.nearest_camera.type} (${data.nearest_camera.distance_mi.toFixed(2)} mi)`;
+
+        checkApproachingCamera(
+          data.nearest_camera.distance_mi,
+          data.speed,
+          data.nearest_camera.speed_limit
+        );
+      }
+    });
+
+    // Flash warning if approaching a speed camera
+    function checkApproachingCamera(distanceMi, speedMph, speedLimit) {
+      const REACTION_TIME = 1.5;
+      const FRICTION_COEFF = 0.7;
+      const GRAVITY = 9.81;
+
+      const speedMps = speedMph * 0.44704;
+      const distanceM = distanceMi * 1609.34;
+
+      if (speedMps <= 0) {
+        return;
+      }
+
+      const brakingDist = (speedMps ** 2) / (2 * FRICTION_COEFF * GRAVITY);
+      const brakingTime = speedMps > 0 ? (brakingDist / speedMps) : Infinity;
+
+      const safeTime = Math.max(5, REACTION_TIME + brakingTime);
+      const timeToCamera = speedMps > 0 ? (distanceM / speedMps) : Infinity;
+
+      if (timeToCamera <= safeTime) {
+        triggerWarning(speedLimit);
+      }
+    }
+
+    let warningActive = false;
+    function triggerWarning(speedLimit) {
+      if (warningActive) return;
+      warningActive = true;
+
+      document.body.classList.add('warning');
+
+      const icon = document.createElement('img');
+      icon.src = `img/speed_${speedLimit}.jpg`;
+      icon.className = 'warning-icon';
+      document.body.appendChild(icon);
+
+      setTimeout(() => {
+        document.body.classList.remove('warning');
+        icon.remove();
+        warningActive = false;
+      }, 1000);
+    }
+  </script>
+
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDpNcYMr1He6zNQYgmnzT8o7ENwEzF74_s&callback=initMap">
+  </script>
+</body>
+</html>

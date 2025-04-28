@@ -1,0 +1,21 @@
+/* Flash the whole screen red for warning */
+body.warning {
+    animation: flash-red 1s ease-in-out;
+  }
+  
+  /* Define the flash animation */
+  @keyframes flash-red {
+    0%, 100%   { background-color: transparent; }
+    50%        { background-color: rgba(255, 0, 0, 0.5); }
+  }
+  
+  /* Style for the warning icon */
+  .warning-icon {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 80px;
+    height: 80px;
+    z-index: 9999;
+    pointer-events: none;
+  }
